@@ -14,15 +14,6 @@ export default defineConfig({
     port: 3001,
     open: true,
     proxy: {
-      '/ais/proxy': {
-        target: env.VITE_API_URL,
-        changeOrigin: true,
-      },
-      '/forecast': {
-        target: env.VITE_AIR_GG_URL,
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/forecast/, '/airmodel'),
-      },
       '/img': {
         target: env.VITE_IMAGE_API_URL,
         changeOrigin: true,

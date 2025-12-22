@@ -124,7 +124,6 @@ const MapDiv = styled.div`
     border: 1px solid lightgrey;
     background-color: rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    font-family: 'NanumBarunGothic', sans-serif;
     font-size: small;
   }
   .ol-button.ol-control {
