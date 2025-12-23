@@ -8,12 +8,12 @@ import MapProvider from '@/components/map/MapProvider';
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen overflow-x-hidden bg-gray-100">
+      <div className="">
         <Routes>
           <Route
             path="/"
             element={
-              <div className="flex flex-col w-[1440px] max-w-[1440px] min-h-screen mx-auto bg-white">
+              <div className="flex flex-col w-screen h-screen">
                 <MapProvider id="webglTest">
                   <Main mapId="webglTest" />
                 </MapProvider>
