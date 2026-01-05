@@ -2,8 +2,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
-import Main from '@/pages/Main';
 import MapProvider from '@/components/map/MapProvider';
+import Utm from '@/pages/Utm';
+import Lcc from '@/pages/Lcc';
 
 function App() {
   return (
@@ -14,8 +15,18 @@ function App() {
             path="/"
             element={
               <div className="flex flex-col w-screen h-screen">
-                <MapProvider id="webglTest">
-                  <Main mapId="webglTest" />
+                <MapProvider id="UtmOverlayTest">
+                  <Utm mapId="UtmOverlayTest" />
+                </MapProvider>
+              </div>
+            }
+          />
+          <Route
+            path="/lcc"
+            element={
+              <div className="flex flex-col w-screen h-screen">
+                <MapProvider id="LccOverlayTest">
+                  <Lcc mapId="LccOverlayTest" />
                 </MapProvider>
               </div>
             }

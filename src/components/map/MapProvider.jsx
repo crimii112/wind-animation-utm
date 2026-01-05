@@ -18,6 +18,10 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
   const [mapObj, setMapObj] = useState({});
 
   proj4.defs('EPSG:32652', '+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs');
+  proj4.defs(
+    'LCC',
+    '+proj=lcc +lat_1=30 +lat_2=60 +lat_0=38 +lon_0=126 +x_0=0 +y_0=0 +a=6370000 +b=6370000 +units=m +no_defs'
+  );
   register(proj4);
 
   /* 지도 모드(일반/위성) 버튼 추가 */
@@ -50,10 +54,10 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
   };
 
   useEffect(() => {
-    // const center = fromLonLat([127.95, 35.95]);
     // const center = [14139592, 4498435];
     // const center = [14139274, 4477885];
-    const center = [14407986, 4306703];
+    // const center = [14407986, 4306703]; // utm.jsx에서 사용
+    const center = [14256613, 4336767]; //lcc.jsx에서 사용
 
     const map = new OlMap({
       controls: defaultControls({ zoom: false, rotate: false }),
@@ -81,11 +85,14 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
         }),
       ],
       view: new View({
-        projection: 'EPSG:3857',
-        center: center,
-        zoom: 11,
+        // projection: 'EPSG:3857',
+        // center: center,
+        // zoom: 11,
+        projection: 'LCC',
+        center: transform(center, 'EPSG:3857', 'LCC'),
+        zoom: 7.5,
         maxZoom: 13,
-        minZoom: 8,
+        minZoom: 7,
         units: 'm',
       }),
       target: id,

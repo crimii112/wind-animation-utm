@@ -18,7 +18,7 @@ const getWindLengthByZoom = zoom => {
   return 5;
 };
 
-function Main({ mapId, SetMap }) {
+function Utm({ mapId, SetMap }) {
   const isWebView = typeof window !== 'undefined' && window.IS_WEBVIEW === true;
   const map = useContext(MapContext);
 
@@ -242,7 +242,7 @@ function Main({ mapId, SetMap }) {
   );
 }
 
-export default Main;
+export default Utm;
 
 const MapDiv = styled.div`
   width: 100%;
