@@ -16,18 +16,22 @@ import { toContext } from 'ol/render';
 function Lcc({ mapId, SetMap }) {
   const map = useContext(MapContext);
 
+  // api 요청 파라미터
   const [bgPoll, setBgPoll] = useState('O3');
   const [arrowGap, setArrowGap] = useState(3);
 
+  // 바람 애니메이션 관련
   const windOverlayRef = useRef([]);
   const [windData, setWindData] = useState([]);
 
+  // 레이어 on/off 상태 관리
   const [layerVisible, setLayerVisible] = useState({
     coords: true,
     arrows: true,
     windAnimation: true,
   });
 
+  // 히트맵(polygon)
   const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceCoords = sourceCoordsRef.current;
   const layerCoordsRef = useRef(
@@ -38,6 +42,7 @@ function Lcc({ mapId, SetMap }) {
     })
   );
 
+  // 바람 화살표(Point)
   const sourceArrowsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceArrows = sourceArrowsRef.current;
   const layerArrowsRef = useRef(
@@ -48,6 +53,7 @@ function Lcc({ mapId, SetMap }) {
     })
   );
 
+  // 화살표 스타일 객체
   const shaft = new RegularShape({
     points: 2,
     radius: 5,
@@ -57,7 +63,6 @@ function Lcc({ mapId, SetMap }) {
     }),
     rotateWithView: true,
   });
-
   const head = new RegularShape({
     points: 3,
     radius: 5,
@@ -66,9 +71,9 @@ function Lcc({ mapId, SetMap }) {
     }),
     rotateWithView: true,
   });
-
   const styles = [new Style({ image: shaft }), new Style({ image: head })];
 
+  // 지도 초기화
   useEffect(() => {
     if (!map.ol_uid) return;
     if (SetMap) SetMap(map);
@@ -76,9 +81,13 @@ function Lcc({ mapId, SetMap }) {
     map.addLayer(layerCoordsRef.current);
     map.addLayer(layerArrowsRef.current);
 
-    getLccData();
-
     map.on('singleclick', handleSingleClick);
+
+    return () => {
+      map.removeLayer(layerCoordsRef.current);
+      map.removeLayer(layerArrowsRef.current);
+      map.un('singleclick', handleSingleClick);
+    };
   }, [map, map.ol_uid]);
 
   const handleSingleClick = e => {
@@ -86,10 +95,16 @@ function Lcc({ mapId, SetMap }) {
     console.log(transform(e.coordinate, 'EPSG:3857', 'LCC'));
   };
 
+  // 데이터 로딩 트리거(초기 + 옵션 변경)
   useEffect(() => {
     if (!map?.ol_uid) return;
     getLccData();
-  }, [bgPoll, arrowGap]);
+  }, [map?.ol_uid, bgPoll, arrowGap]);
+
+  // bgPoll 변경 시 기존 스타일 캐시 초기화
+  useEffect(() => {
+    polygonStyleCache.current = {};
+  }, [bgPoll]);
 
   useEffect(() => {
     if (!layerCoordsRef.current) return;
@@ -101,109 +116,119 @@ function Lcc({ mapId, SetMap }) {
     layerArrowsRef.current.setVisible(layerVisible.arrows);
   }, [layerVisible.arrows]);
 
-  const setPolygonFeatureStyle = f => {
-    const value = f.get('value');
+  // 화살표 스타일 함수
+  // 화살표는 feature마다 방향/크기가 다르므로 layer.setStyle() 방식 사용
+  useEffect(() => {
+    if (!layerArrowsRef.current) return;
 
-    const style = rgbs[bgPoll].find(s => value >= s.min && value < s.max);
-    if (style) {
-      f.setStyle(
-        new Style({
-          fill: new Fill({
-            // color: style.color,
-            color: style.color.replace(
-              /rgba\(([^,]+), ([^,]+), ([^,]+), ([^,]+)\)/,
-              (match, r, g, b, a) => `rgba(${r}, ${g}, ${b}, 0.3)`
-            ),
-          }),
-        })
+    layerArrowsRef.current.setStyle(f => {
+      const wd = f.get('wd');
+      const ws = f.get('ws');
+      if (wd == null || ws == null) return null;
+
+      const angle = ((wd - 180) * Math.PI) / 180;
+      const scale = ws / 10;
+
+      shaft.setScale([1, scale]);
+      shaft.setRotation(angle);
+
+      head.setDisplacement([
+        0,
+        head.getRadius() / 2 + shaft.getRadius() * scale,
+      ]);
+      head.setRotation(angle);
+
+      return styles;
+    });
+  }, []);
+
+  const polygonStyleCache = useRef({});
+  const getPolygonStyle = value => {
+    const key = `${bgPoll}-${value}`;
+    if (polygonStyleCache.current[key]) {
+      return polygonStyleCache.current[key];
+    }
+
+    const color = rgbs[bgPoll].find(
+      s => value >= s.min && value < s.max
+    )?.color;
+
+    if (!color) return null;
+
+    const style = new Style({
+      fill: new Fill({
+        color: color.replace(
+          /rgba\(([^,]+), ([^,]+), ([^,]+), ([^)]+)\)/,
+          (_, r, g, b) => `rgba(${r}, ${g}, ${b}, 0.3)`
+        ),
+      }),
+    });
+
+    polygonStyleCache.current[key] = style;
+    return style;
+  };
+
+  // API 데이터 요청
+  const getLccData = async () => {
+    sourceArrows.clear();
+    sourceCoords.clear();
+    document.body.style.cursor = 'progress';
+
+    try {
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_WIND_API_URL}/api/lcc`,
+        { bgPoll, arrowGap }
       );
+
+      if (!data?.polygonData) return;
+
+      // 히트맵 Polygon 생성
+      sourceCoords.addFeatures(createPolygonFeatures(data.polygonData));
+
+      // 바람 애니메이션 데이터 설정
+      // 화살표 생성
+      if (data.arrowData) {
+        setWindData(data.arrowData);
+        sourceArrows.addFeatures(createArrowFeatures(data.arrowData));
+      }
+    } catch (e) {
+      console.error('Error fetching data:', e);
+      alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
+    } finally {
+      document.body.style.cursor = 'default';
     }
   };
 
-  const getLccData = async () => {
-    sourceArrows.clear();
-    layerArrowsRef.current.getSource().clear();
-    sourceCoords.clear();
-    layerCoordsRef.current.getSource().clear();
-
-    document.body.style.cursor = 'progress';
-
-    await axios
-      .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        bgPoll: bgPoll,
-        arrowGap: arrowGap,
-      })
-      .then(res => res.data)
-      .then(data => {
-        // console.log(data);
-
-        if (!data.polygonData) return;
-
-        // 좌표 데이터 Polygon Feature 생성
-        const polygonFeatures = data.polygonData.map(item => {
-          const feature = new Feature({
-            geometry: new Polygon([
-              [
-                [item.lon - 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat - 4500],
-                [item.lon + 4500, item.lat + 4500],
-                [item.lon - 4500, item.lat + 4500],
-                // [item.lon - 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat - 13500],
-                // [item.lon + 13500, item.lat + 13500],
-                // [item.lon - 13500, item.lat + 13500],
-              ],
-            ]),
-            value: item.value,
-          });
-          return feature;
-        });
-
-        polygonFeatures.forEach(f => setPolygonFeatureStyle(f));
-        sourceCoords.addFeatures(polygonFeatures);
-
-        if (!data.arrowData) return;
-
-        setWindData(data.arrowData);
-
-        // 바람 화살표
-        const arrowFeatures = data.arrowData.map(item => {
-          const feature = new Feature({
-            geometry: new Point([item.lon, item.lat]),
-            wd: item.wd,
-            ws: item.ws,
-          });
-          return feature;
-        });
-        sourceArrows.addFeatures(arrowFeatures);
-
-        layerArrowsRef.current.setStyle(f => {
-          const wd = f.get('wd');
-          const ws = f.get('ws');
-          const angle = ((wd - 180) * Math.PI) / 180;
-          const scale = ws / 10;
-          shaft.setScale([1, scale]);
-          shaft.setRotation(angle);
-          head.setDisplacement([
-            0,
-            head.getRadius() / 2 + shaft.getRadius() * scale,
-          ]);
-          head.setRotation(angle);
-          return styles;
-        });
-      })
-      .catch(error => {
-        console.error('Error fetching data:', error);
-        alert('데이터를 가져오는 데 실패했습니다. 나중에 다시 시도해주세요.');
+  const createPolygonFeatures = data =>
+    data.map(item => {
+      const f = new Feature({
+        geometry: new Polygon([
+          [
+            [item.lon - 4500, item.lat + 4500],
+            [item.lon - 4500, item.lat - 4500],
+            [item.lon + 4500, item.lat - 4500],
+            [item.lon + 4500, item.lat + 4500],
+            [item.lon - 4500, item.lat + 4500],
+          ],
+        ]),
+        value: item.value,
       });
 
-    document.body.style.cursor = 'default';
-  };
+      f.setStyle(getPolygonStyle(item.value));
+      return f;
+    });
+
+  const createArrowFeatures = data =>
+    data.map(
+      item =>
+        new Feature({
+          geometry: new Point([item.lon, item.lat]),
+          wd: item.wd,
+          ws: item.ws,
+        })
+    );
 
   /* wind overlay(wind animation) 추가 */
-
   useEffect(() => {
     if (!map?.ol_uid) return;
 
@@ -296,7 +321,9 @@ const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
   return (
     <LegendContainer className="flex flex-col gap-5">
       <div className={pollLegendOn ? '' : 'hidden'}>
-        <LegendTitle>{title}</LegendTitle>
+        <LegendTitle>
+          {title}({unitMap[title]})
+        </LegendTitle>
         {rgbs.toReversed().map(item => (
           <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
             <div
@@ -379,6 +406,12 @@ const ArrowImg = ({ ws }) => {
   }, []);
 
   return <canvas ref={arrowImgRef} />;
+};
+
+const unitMap = {
+  O3: 'ppm',
+  PM10: 'µg/m³',
+  'PM2.5': 'µg/m³',
 };
 
 const arrowLegendDatas = [
