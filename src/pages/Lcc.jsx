@@ -11,9 +11,22 @@ import { createWindOverlay } from '@/components/wind/wind-overlay';
 import { Point, Polygon } from 'ol/geom';
 import { Feature } from 'ol';
 import { transform } from 'ol/proj';
+import { toContext } from 'ol/render';
 
 function Lcc({ mapId, SetMap }) {
   const map = useContext(MapContext);
+
+  const [bgPoll, setBgPoll] = useState('O3');
+  const [arrowGap, setArrowGap] = useState(3);
+
+  const windOverlayRef = useRef([]);
+  const [windData, setWindData] = useState([]);
+
+  const [layerVisible, setLayerVisible] = useState({
+    coords: true,
+    arrows: true,
+    windAnimation: true,
+  });
 
   const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceCoords = sourceCoordsRef.current;
@@ -21,7 +34,7 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceCoords,
       id: 'coords',
-      opacity: 0.7,
+      opacity: 0.8,
     })
   );
 
@@ -31,7 +44,7 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceArrows,
       id: 'arrows',
-      opacity: 0.7,
+      opacity: 0.8,
     })
   );
 
@@ -56,15 +69,6 @@ function Lcc({ mapId, SetMap }) {
 
   const styles = [new Style({ image: shaft }), new Style({ image: head })];
 
-  const windOverlayRef = useRef([]);
-  const [windData, setWindData] = useState([]);
-
-  const [layerVisible, setLayerVisible] = useState({
-    coords: true,
-    arrows: true,
-    windAnimation: true,
-  });
-
   useEffect(() => {
     if (!map.ol_uid) return;
     if (SetMap) SetMap(map);
@@ -83,6 +87,11 @@ function Lcc({ mapId, SetMap }) {
   };
 
   useEffect(() => {
+    if (!map?.ol_uid) return;
+    getLccData();
+  }, [bgPoll, arrowGap]);
+
+  useEffect(() => {
     if (!layerCoordsRef.current) return;
     layerCoordsRef.current.setVisible(layerVisible.coords);
   }, [layerVisible.coords]);
@@ -95,7 +104,7 @@ function Lcc({ mapId, SetMap }) {
   const setPolygonFeatureStyle = f => {
     const value = f.get('value');
 
-    const style = rgbs['O3'].find(s => value >= s.min && value < s.max);
+    const style = rgbs[bgPoll].find(s => value >= s.min && value < s.max);
     if (style) {
       f.setStyle(
         new Style({
@@ -121,8 +130,8 @@ function Lcc({ mapId, SetMap }) {
 
     await axios
       .post(`${import.meta.env.VITE_WIND_API_URL}/api/lcc`, {
-        bgPoll: 'O3',
-        arrowGap: 3,
+        bgPoll: bgPoll,
+        arrowGap: arrowGap,
       })
       .then(res => res.data)
       .then(data => {
@@ -212,6 +221,28 @@ function Lcc({ mapId, SetMap }) {
     <MapDiv id={mapId}>
       <Panel>
         <label>
+          <span>배경 물질</span>
+          <select value={bgPoll} onChange={e => setBgPoll(e.target.value)}>
+            <option value="O3">O3</option>
+            <option value="PM10">PM10</option>
+            <option value="PM2.5">PM2.5</option>
+          </select>
+        </label>
+        <label>
+          <span>바람 간격</span>
+          <select
+            value={arrowGap}
+            onChange={e => {
+              setArrowGap(Number(e.target.value));
+            }}
+          >
+            <option value={1}>1</option>
+            <option value={2}>2</option>
+            <option value={3}>3</option>
+            <option value={4}>4</option>
+          </select>
+        </label>
+        <label>
           <input
             type="checkbox"
             checked={layerVisible.coords}
@@ -247,9 +278,116 @@ function Lcc({ mapId, SetMap }) {
           <span>바람 애니메이션</span>
         </label>
       </Panel>
+      {bgPoll && (
+        <LegendWrapper>
+          <PolygonLegend
+            rgbs={rgbs[bgPoll]}
+            title={bgPoll}
+            pollLegendOn={true}
+            wsLegendOn={true}
+          />
+        </LegendWrapper>
+      )}
     </MapDiv>
   );
 }
+
+const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
+  return (
+    <LegendContainer className="flex flex-col gap-5">
+      <div className={pollLegendOn ? '' : 'hidden'}>
+        <LegendTitle>{title}</LegendTitle>
+        {rgbs.toReversed().map(item => (
+          <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
+            <div
+              className="w-6 h-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-sm leading-none translate-y-[5px]">
+              {title === 'O3' ? item.min.toFixed(3) : item.min}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className={wsLegendOn ? '' : 'hidden'}>
+        <LegendTitle>WS(m/s)</LegendTitle>
+        {arrowLegendDatas.map(item => (
+          <LegendItem key={item.ws}>
+            <ArrowImg ws={item.ws} />
+            <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
+          </LegendItem>
+        ))}
+      </div>
+    </LegendContainer>
+  );
+};
+
+const ArrowImg = ({ ws }) => {
+  const arrowImgRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = arrowImgRef.current;
+    if (!canvas) return;
+
+    const size = 20;
+    const pr = window.devicePixelRatio || 1;
+    canvas.width = size * pr;
+    canvas.height = size * pr;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+    canvas.style.marginRight = `10px`;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const shaft = new RegularShape({
+      points: 2,
+      radius: 5,
+      stroke: new Stroke({
+        width: 2,
+        color: 'black',
+      }),
+      rotateWithView: true,
+    });
+
+    const head = new RegularShape({
+      points: 3,
+      radius: 5,
+      fill: new Fill({
+        color: 'black',
+      }),
+      rotateWithView: true,
+    });
+
+    const angle = ((270 - 180) * Math.PI) / 180; // 오른쪽 수평
+    const scale = ws / 10;
+    shaft.setScale([1, scale]);
+    shaft.setRotation(angle);
+    head.setDisplacement([0, head.getRadius() / 2 + shaft.getRadius() * scale]);
+    head.setRotation(angle);
+
+    const vc = toContext(ctx, {
+      size: [canvas.width, canvas.height],
+      pixelRatio: pr,
+    });
+    vc.setStyle(new Style({ image: shaft }));
+    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
+    vc.setStyle(new Style({ image: head }));
+    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
+  }, []);
+
+  return <canvas ref={arrowImgRef} />;
+};
+
+const arrowLegendDatas = [
+  { ws: 1.0 },
+  { ws: 3.0 },
+  { ws: 5.0 },
+  { ws: 7.0 },
+  { ws: 9.0 },
+];
 
 export default Lcc;
 
@@ -590,4 +728,73 @@ const Panel = styled.div`
     cursor: pointer;
     user-select: none;
   }
+
+  span {
+    white-space: nowrap;
+  }
+
+  select {
+    appearance: none; /* 기본 화살표 제거 */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    width: 90px;
+    padding: 6px 28px 6px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  select:hover {
+    border-color: #888;
+  }
+
+  select:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+  }
+`;
+
+const LegendWrapper = styled.div`
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1000;
+
+  pointer-events: none; /* 지도 조작 방해 안 하게 */
+`;
+const LegendContainer = styled.div`
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  pointer-events: auto;
+`;
+const LegendTitle = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+`;
+const LegendItem = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+`;
+const RangeLabel = styled.span`
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 `;
