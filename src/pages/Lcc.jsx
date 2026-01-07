@@ -5,13 +5,14 @@ import styled from 'styled-components';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Fill, RegularShape, Stroke, Style } from 'ol/style';
-
-import MapContext from '@/components/map/MapContext';
-import { createWindOverlay } from '@/components/wind/wind-overlay';
 import { Point, Polygon } from 'ol/geom';
 import { Feature } from 'ol';
 import { transform } from 'ol/proj';
-import { toContext } from 'ol/render';
+
+import MapContext from '@/components/map/MapContext';
+import { createLccWindOverlay } from '@/components/wind/lcc-wind-overlay';
+import LccMapControlPanel from '@/components/ui/lcc-map-control-panel';
+import LccLegend from '@/components/ui/lcc-legend';
 
 function Lcc({ mapId, SetMap }) {
   const map = useContext(MapContext);
@@ -38,7 +39,6 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceCoords,
       id: 'coords',
-      opacity: 0.8,
     })
   );
 
@@ -49,7 +49,6 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceArrows,
       id: 'arrows',
-      opacity: 0.8,
     })
   );
 
@@ -59,7 +58,7 @@ function Lcc({ mapId, SetMap }) {
     radius: 5,
     stroke: new Stroke({
       width: 2,
-      color: 'black',
+      color: 'yellow',
     }),
     rotateWithView: true,
   });
@@ -67,7 +66,7 @@ function Lcc({ mapId, SetMap }) {
     points: 3,
     radius: 5,
     fill: new Fill({
-      color: 'black',
+      color: 'yellow',
     }),
     rotateWithView: true,
   });
@@ -107,14 +106,9 @@ function Lcc({ mapId, SetMap }) {
   }, [bgPoll]);
 
   useEffect(() => {
-    if (!layerCoordsRef.current) return;
-    layerCoordsRef.current.setVisible(layerVisible.coords);
-  }, [layerVisible.coords]);
-
-  useEffect(() => {
-    if (!layerArrowsRef.current) return;
-    layerArrowsRef.current.setVisible(layerVisible.arrows);
-  }, [layerVisible.arrows]);
+    layerCoordsRef.current?.setVisible(layerVisible.coords);
+    layerArrowsRef.current?.setVisible(layerVisible.arrows);
+  }, [layerVisible]);
 
   // 화살표 스타일 함수
   // 화살표는 feature마다 방향/크기가 다르므로 layer.setStyle() 방식 사용
@@ -199,6 +193,7 @@ function Lcc({ mapId, SetMap }) {
     }
   };
 
+  // 히트맵 Polygon Feature 생성
   const createPolygonFeatures = data =>
     data.map(item => {
       const f = new Feature({
@@ -218,6 +213,7 @@ function Lcc({ mapId, SetMap }) {
       return f;
     });
 
+  // 바람 화살표 Feature 생성
   const createArrowFeatures = data =>
     data.map(
       item =>
@@ -228,7 +224,7 @@ function Lcc({ mapId, SetMap }) {
         })
     );
 
-  /* wind overlay(wind animation) 추가 */
+  /* wind overlay(바람 애니메이션) 추가 */
   useEffect(() => {
     if (!map?.ol_uid) return;
 
@@ -238,78 +234,26 @@ function Lcc({ mapId, SetMap }) {
     if (!layerVisible.windAnimation || windData.length === 0) return;
 
     windData.forEach(item => {
-      windOverlayRef.current.push(createWindOverlay(map, item));
+      windOverlayRef.current.push(createLccWindOverlay(map, item));
     });
   }, [map, windData, layerVisible.windAnimation]);
 
   return (
     <MapDiv id={mapId}>
-      <Panel>
-        <label>
-          <span>배경 물질</span>
-          <select value={bgPoll} onChange={e => setBgPoll(e.target.value)}>
-            <option value="O3">O3</option>
-            <option value="PM10">PM10</option>
-            <option value="PM2.5">PM2.5</option>
-          </select>
-        </label>
-        <label>
-          <span>바람 간격</span>
-          <select
-            value={arrowGap}
-            onChange={e => {
-              setArrowGap(Number(e.target.value));
-            }}
-          >
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
-          </select>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={layerVisible.coords}
-            onChange={e =>
-              setLayerVisible(v => ({ ...v, coords: e.target.checked }))
-            }
-          />
-          <span>물질 히트맵</span>
-        </label>
-
-        <label>
-          <input
-            type="checkbox"
-            checked={layerVisible.arrows}
-            onChange={e =>
-              setLayerVisible(v => ({ ...v, arrows: e.target.checked }))
-            }
-          />
-          <span>바람 화살표</span>
-        </label>
-
-        <label>
-          <input
-            type="checkbox"
-            checked={layerVisible.windAnimation}
-            onChange={e =>
-              setLayerVisible(v => ({
-                ...v,
-                windAnimation: e.target.checked,
-              }))
-            }
-          />
-          <span>바람 애니메이션</span>
-        </label>
-      </Panel>
+      <LccMapControlPanel
+        bgPoll={bgPoll}
+        setBgPoll={setBgPoll}
+        arrowGap={arrowGap}
+        setArrowGap={setArrowGap}
+        layerVisible={layerVisible}
+        setLayerVisible={setLayerVisible}
+      />
       {bgPoll && (
         <LegendWrapper>
-          <PolygonLegend
-            rgbs={rgbs[bgPoll]}
+          <LccLegend
             title={bgPoll}
-            pollLegendOn={true}
-            wsLegendOn={true}
+            rgbs={rgbs[bgPoll]}
+            unit={unitMap[bgPoll]}
           />
         </LegendWrapper>
       )}
@@ -317,110 +261,11 @@ function Lcc({ mapId, SetMap }) {
   );
 }
 
-const PolygonLegend = ({ rgbs, title, pollLegendOn, wsLegendOn }) => {
-  return (
-    <LegendContainer className="flex flex-col gap-5">
-      <div className={pollLegendOn ? '' : 'hidden'}>
-        <LegendTitle>
-          {title}({unitMap[title]})
-        </LegendTitle>
-        {rgbs.toReversed().map(item => (
-          <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
-            <div
-              className="w-6 h-full"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-sm leading-none translate-y-[5px]">
-              {title === 'O3' ? item.min.toFixed(3) : item.min}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className={wsLegendOn ? '' : 'hidden'}>
-        <LegendTitle>WS(m/s)</LegendTitle>
-        {arrowLegendDatas.map(item => (
-          <LegendItem key={item.ws}>
-            <ArrowImg ws={item.ws} />
-            <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
-          </LegendItem>
-        ))}
-      </div>
-    </LegendContainer>
-  );
-};
-
-const ArrowImg = ({ ws }) => {
-  const arrowImgRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = arrowImgRef.current;
-    if (!canvas) return;
-
-    const size = 20;
-    const pr = window.devicePixelRatio || 1;
-    canvas.width = size * pr;
-    canvas.height = size * pr;
-    canvas.style.width = `${size}px`;
-    canvas.style.height = `${size}px`;
-    canvas.style.marginRight = `10px`;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const shaft = new RegularShape({
-      points: 2,
-      radius: 5,
-      stroke: new Stroke({
-        width: 2,
-        color: 'black',
-      }),
-      rotateWithView: true,
-    });
-
-    const head = new RegularShape({
-      points: 3,
-      radius: 5,
-      fill: new Fill({
-        color: 'black',
-      }),
-      rotateWithView: true,
-    });
-
-    const angle = ((270 - 180) * Math.PI) / 180; // 오른쪽 수평
-    const scale = ws / 10;
-    shaft.setScale([1, scale]);
-    shaft.setRotation(angle);
-    head.setDisplacement([0, head.getRadius() / 2 + shaft.getRadius() * scale]);
-    head.setRotation(angle);
-
-    const vc = toContext(ctx, {
-      size: [canvas.width, canvas.height],
-      pixelRatio: pr,
-    });
-    vc.setStyle(new Style({ image: shaft }));
-    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
-    vc.setStyle(new Style({ image: head }));
-    vc.drawGeometry(new Point([canvas.width / 2, canvas.height / 2]));
-  }, []);
-
-  return <canvas ref={arrowImgRef} />;
-};
-
 const unitMap = {
   O3: 'ppm',
   PM10: 'µg/m³',
   'PM2.5': 'µg/m³',
 };
-
-const arrowLegendDatas = [
-  { ws: 1.0 },
-  { ws: 3.0 },
-  { ws: 5.0 },
-  { ws: 7.0 },
-  { ws: 9.0 },
-];
 
 export default Lcc;
 
@@ -738,96 +583,10 @@ const MapDiv = styled.div`
   height: 100vh;
   position: relative;
 `;
-const Panel = styled.div`
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 1000;
-
-  background: rgba(255, 255, 255, 0.85);
-  padding: 10px 12px;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  span {
-    white-space: nowrap;
-  }
-
-  select {
-    appearance: none; /* 기본 화살표 제거 */
-    -webkit-appearance: none;
-    -moz-appearance: none;
-
-    width: 90px;
-    padding: 6px 28px 6px 10px;
-    font-size: 13px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-    background-color: #fff;
-
-    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-
-    cursor: pointer;
-    transition: border-color 0.2s, box-shadow 0.2s;
-  }
-
-  select:hover {
-    border-color: #888;
-  }
-
-  select:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
-  }
-`;
 
 const LegendWrapper = styled.div`
   position: absolute;
   bottom: 12px;
   right: 12px;
   z-index: 1000;
-
-  pointer-events: none; /* 지도 조작 방해 안 하게 */
-`;
-const LegendContainer = styled.div`
-  background: rgba(255, 255, 255, 0.9);
-  padding: 10px 12px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  pointer-events: auto;
-`;
-const LegendTitle = styled.div`
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-`;
-const LegendItem = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-`;
-const RangeLabel = styled.span`
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
 `;

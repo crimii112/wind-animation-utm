@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-const MapControlPanel = ({
+const UtmMapControlPanel = ({
   dateTime,
   setDateTime,
   layerVisible,
@@ -101,7 +101,7 @@ const MapControlPanel = ({
   );
 };
 
-export default MapControlPanel;
+export default UtmMapControlPanel;
 
 const ToggleBox = styled.div`
   position: absolute;

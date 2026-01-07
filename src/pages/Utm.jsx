@@ -6,9 +6,9 @@ import { ImageStatic } from 'ol/source';
 import { transform } from 'ol/proj';
 
 import MapContext from '@/components/map/MapContext';
-import { createWindOverlay } from '@/components/wind/wind-overlay';
+import { createUtmWindOverlay } from '@/components/wind/utm-wind-overlay';
 import { useWebViewBridge } from '@/hooks/useWebViewBridge';
-import MapControlPanel from '@/components/ui/map-control-panel';
+import UtmMapControlPanel from '@/components/ui/utm-map-control-panel';
 
 const getWindLengthByZoom = zoom => {
   if (zoom >= 12) return 30;
@@ -197,7 +197,7 @@ function Utm({ mapId, SetMap }) {
     if (!layerVisible.windAnimation || windData.length === 0) return;
 
     windData.forEach(item => {
-      windOverlayRef.current.push(createWindOverlay(map, item));
+      windOverlayRef.current.push(createUtmWindOverlay(map, item));
     });
   }, [map, windData, layerVisible.windAnimation]);
 
@@ -231,7 +231,7 @@ function Utm({ mapId, SetMap }) {
   return (
     <MapDiv id={mapId}>
       {!isWebView && (
-        <MapControlPanel
+        <UtmMapControlPanel
           dateTime={dateTime}
           setDateTime={setDateTime}
           layerVisible={layerVisible}

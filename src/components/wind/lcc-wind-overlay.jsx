@@ -1,14 +1,13 @@
 import { Overlay } from 'ol';
-import { transform } from 'ol/proj';
 
-const createWindOverlay = (map, item) => {
+const createLccWindOverlay = (map, item) => {
   const { lon, lat, wd, ws } = item;
 
   // 풍속 → 애니메이션 속도
   const baseSpeed = ws < 5 ? 4 : ws < 10 ? 3 : ws < 15 ? 2 : 1;
   const speed = baseSpeed + Math.random() * 0.8;
   // 풍속 → 두께
-  const thickness = ws < 3 ? 1 : ws < 6 ? 3 : 6;
+  const thickness = ws < 3 ? 1 : ws < 6 ? 3 : ws < 10 ? 5 : 7;
 
   const el = document.createElement('div');
   el.innerHTML = `
@@ -22,8 +21,7 @@ const createWindOverlay = (map, item) => {
 
   const overlay = new Overlay({
     element: el,
-    // position: transform([lon, lat], 'EPSG:32652', 'EPSG:3857'), // Utm.jsx
-    position: [lon, lat], // Lcc.jsx
+    position: [lon, lat],
     positioning: 'center-center',
     stopEvent: false,
   });
@@ -35,4 +33,4 @@ const createWindOverlay = (map, item) => {
   return overlay;
 };
 
-export { createWindOverlay };
+export { createLccWindOverlay };
