@@ -10,7 +10,7 @@
   position: absolute;
   height: 25px;
   width: 2px;
-  border-radius: 2px;
+  border-radius: 5px;
   box-shadow: 0 0 2px rgba(30, 144, 255, 0.6);
   background-image: linear-gradient(
     to top,

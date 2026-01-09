@@ -9,7 +9,7 @@ import {
   defaults as defaultInteractions,
 } from 'ol/interaction';
 import { Tile } from 'ol/layer';
-import { XYZ } from 'ol/source';
+import { OSM, XYZ } from 'ol/source';
 import Button from 'ol-ext/control/Button';
 import styled from 'styled-components';
 import MapContext from './MapContext';
@@ -37,8 +37,8 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
       handleClick: e => handleMapMode(e, map),
     });
 
-    map.addControl(baseLayerBtn);
-    map.addControl(satelliteLayerBtn);
+    // map.addControl(baseLayerBtn);
+    // map.addControl(satelliteLayerBtn);
   }, []);
 
   /* 지도 모드(일반/위성) 변경 */
@@ -64,25 +64,31 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
       interactions: defaultInteractions().extend([new DblClickDragZoom()]),
       layers: [
         new Tile({
-          name: 'Base',
-          visible: false,
-          source: new XYZ({
-            projection: 'EPSG:3857',
-            url: `http://api.vworld.kr/req/wmts/1.0.0/${
-              import.meta.env.VITE_APP_VWORLD_API_KEY
-            }/Base/{z}/{y}/{x}.png`,
+          name: 'OSM',
+          source: new OSM({
+            tilePixelRatio: 5,
           }),
         }),
-        new Tile({
-          name: 'Satellite',
-          visible: false,
-          source: new XYZ({
-            projection: 'EPSG:3857',
-            url: `http://api.vworld.kr/req/wmts/1.0.0/${
-              import.meta.env.VITE_APP_VWORLD_API_KEY
-            }/Satellite/{z}/{y}/{x}.jpeg`,
-          }),
-        }),
+        // new Tile({
+        //   name: 'Base',
+        //   visible: false,
+        //   source: new XYZ({
+        //     projection: 'EPSG:3857',
+        //     url: `http://api.vworld.kr/req/wmts/1.0.0/${
+        //       import.meta.env.VITE_APP_VWORLD_API_KEY
+        //     }/Base/{z}/{y}/{x}.png`,
+        //   }),
+        // }),
+        // new Tile({
+        //   name: 'Satellite',
+        //   visible: false,
+        //   source: new XYZ({
+        //     projection: 'EPSG:3857',
+        //     url: `http://api.vworld.kr/req/wmts/1.0.0/${
+        //       import.meta.env.VITE_APP_VWORLD_API_KEY
+        //     }/Satellite/{z}/{y}/{x}.jpeg`,
+        //   }),
+        // }),
       ],
       view: new View({
         // projection: 'EPSG:3857',
@@ -90,19 +96,19 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
         // zoom: 11,
         projection: 'LCC',
         center: transform(center, 'EPSG:3857', 'LCC'),
-        zoom: 7.5,
+        zoom: 5,
         maxZoom: 13,
-        minZoom: 7,
+        minZoom: 2,
         units: 'm',
       }),
       target: id,
     });
 
     /* 기본 Map 모드 설정 */
-    map
-      .getLayers()
-      .getArray()
-      .forEach(ly => ly.setVisible(ly.get('name') === defaultMode));
+    // map
+    //   .getLayers()
+    //   .getArray()
+    //   .forEach(ly => ly.setVisible(ly.get('name') === defaultMode));
 
     addChangeModeBtn(map);
     setMapObj(map);
@@ -135,5 +141,14 @@ const MapDiv = styled.div`
   }
   .ol-button.ol-control {
     width: fit-content;
+  }
+
+  .ol-attribution {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    left: auto;
+    top: auto;
+    font-size: 10px;
   }
 `;

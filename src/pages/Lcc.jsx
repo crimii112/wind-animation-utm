@@ -14,12 +14,22 @@ import { createLccWindOverlay } from '@/components/wind/lcc-wind-overlay';
 import LccMapControlPanel from '@/components/ui/lcc-map-control-panel';
 import LccLegend from '@/components/ui/lcc-legend';
 
+const GRID_KM_MAP_CONFIG = {
+  9: { center: [131338, -219484], zoom: 7.5 },
+  27: { center: [-121523, -46962], zoom: 5 },
+};
+
 function Lcc({ mapId, SetMap }) {
   const map = useContext(MapContext);
 
+  const [datetimeTxt, setDatetimeTxt] = useState('');
   // api 요청 파라미터
+  const [gridKm, setGridKm] = useState(9);
+  const [layer, setLayer] = useState(0);
+  const [tstep, setTstep] = useState(0);
   const [bgPoll, setBgPoll] = useState('O3');
-  const [arrowGap, setArrowGap] = useState(3);
+  const [arrowGap, setArrowGap] = useState(4);
+  const halfCell = (gridKm * 1000) / 2;
 
   // 바람 애니메이션 관련
   const windOverlayRef = useRef([]);
@@ -32,7 +42,7 @@ function Lcc({ mapId, SetMap }) {
     windAnimation: true,
   });
 
-  // 히트맵(polygon)
+  // 모델링 농도 히트맵(polygon)
   const sourceCoordsRef = useRef(new VectorSource({ wrapX: false }));
   const sourceCoords = sourceCoordsRef.current;
   const layerCoordsRef = useRef(
@@ -98,7 +108,20 @@ function Lcc({ mapId, SetMap }) {
   useEffect(() => {
     if (!map?.ol_uid) return;
     getLccData();
-  }, [map?.ol_uid, bgPoll, arrowGap]);
+  }, [map?.ol_uid, gridKm, layer, tstep, bgPoll, arrowGap]);
+
+  useEffect(() => {
+    if (!map?.ol_uid) return;
+
+    const cfg = GRID_KM_MAP_CONFIG[gridKm];
+    if (!cfg) return;
+
+    map.getView().animate({
+      center: cfg.center,
+      zoom: cfg.zoom,
+      duration: 500,
+    });
+  });
 
   // bgPoll 변경 시 기존 스타일 캐시 초기화
   useEffect(() => {
@@ -170,9 +193,11 @@ function Lcc({ mapId, SetMap }) {
 
     try {
       const { data } = await axios.post(
-        `${import.meta.env.VITE_WIND_API_URL}/api/lcc`,
-        { bgPoll, arrowGap }
+        `${import.meta.env.VITE_WIND_API_URL}/api/marker/lcc`,
+        { gridKm, layer, tstep, bgPoll, arrowGap }
       );
+
+      if (data.datetime) setDatetimeTxt(data.datetime);
 
       if (!data?.polygonData) return;
 
@@ -199,11 +224,11 @@ function Lcc({ mapId, SetMap }) {
       const f = new Feature({
         geometry: new Polygon([
           [
-            [item.lon - 4500, item.lat + 4500],
-            [item.lon - 4500, item.lat - 4500],
-            [item.lon + 4500, item.lat - 4500],
-            [item.lon + 4500, item.lat + 4500],
-            [item.lon - 4500, item.lat + 4500],
+            [item.lon - halfCell, item.lat + halfCell],
+            [item.lon - halfCell, item.lat - halfCell],
+            [item.lon + halfCell, item.lat - halfCell],
+            [item.lon + halfCell, item.lat + halfCell],
+            [item.lon - halfCell, item.lat + halfCell],
           ],
         ]),
         value: item.value,
@@ -241,6 +266,13 @@ function Lcc({ mapId, SetMap }) {
   return (
     <MapDiv id={mapId}>
       <LccMapControlPanel
+        datetime={datetimeTxt}
+        gridKm={gridKm}
+        setGridKm={setGridKm}
+        layer={layer}
+        setLayer={setLayer}
+        tstep={tstep}
+        setTstep={setTstep}
         bgPoll={bgPoll}
         setBgPoll={setBgPoll}
         arrowGap={arrowGap}
@@ -249,13 +281,7 @@ function Lcc({ mapId, SetMap }) {
         setLayerVisible={setLayerVisible}
       />
       {bgPoll && (
-        <LegendWrapper>
-          <LccLegend
-            title={bgPoll}
-            rgbs={rgbs[bgPoll]}
-            unit={unitMap[bgPoll]}
-          />
-        </LegendWrapper>
+        <LccLegend title={bgPoll} rgbs={rgbs[bgPoll]} unit={unitMap[bgPoll]} />
       )}
     </MapDiv>
   );
@@ -582,11 +608,4 @@ const MapDiv = styled.div`
   width: 100%;
   height: 100vh;
   position: relative;
-`;
-
-const LegendWrapper = styled.div`
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  z-index: 1000;
 `;

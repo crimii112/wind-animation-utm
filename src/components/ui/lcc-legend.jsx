@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { X } from 'lucide-react';
 
 import { Point } from 'ol/geom';
 import { toContext } from 'ol/render';
@@ -12,34 +13,45 @@ const LccLegend = ({
   pollLegendOn = true,
   wsLegendOn = true,
 }) => {
+  const [open, setOpen] = useState(true);
+
+  if (!open) {
+    return <LegendOpenBtn onClick={() => setOpen(true)}>Legend</LegendOpenBtn>;
+  }
+
   return (
-    <LegendContainer>
-      <div className={pollLegendOn ? '' : 'hidden'}>
-        <LegendTitle>
-          {title}({unit})
-        </LegendTitle>
-        {rgbs.toReversed().map(item => (
-          <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
-            <div
-              className="w-6 h-full"
-              style={{ backgroundColor: item.color }}
-            />
-            <span className="text-sm leading-none translate-y-[5px]">
-              {title === 'O3' ? item.min.toFixed(3) : item.min}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className={wsLegendOn ? '' : 'hidden'}>
-        <LegendTitle>WS(m/s)</LegendTitle>
-        {arrowLegendDatas.map(item => (
-          <LegendItem key={item.ws}>
-            <ArrowImg ws={item.ws} />
-            <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
-          </LegendItem>
-        ))}
-      </div>
-    </LegendContainer>
+    <LegendWrapper>
+      <LegendCloseBtn onClick={() => setOpen(false)}>
+        <X width={15} height={15} />
+      </LegendCloseBtn>
+      <LegendContainer>
+        <div className={pollLegendOn ? '' : 'hidden'}>
+          <LegendTitle>
+            {title}({unit})
+          </LegendTitle>
+          {rgbs.toReversed().map(item => (
+            <div className="flex flex-row items-end gap-1 h-5" key={item.min}>
+              <div
+                className="w-6 h-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-sm leading-none translate-y-[5px]">
+                {title === 'O3' ? item.min.toFixed(3) : item.min}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className={wsLegendOn ? '' : 'hidden'}>
+          <LegendTitle>WS(m/s)</LegendTitle>
+          {arrowLegendDatas.map(item => (
+            <LegendItem key={item.ws}>
+              <ArrowImg ws={item.ws} />
+              <RangeLabel>{Number(item.ws).toFixed(1)}</RangeLabel>
+            </LegendItem>
+          ))}
+        </div>
+      </LegendContainer>
+    </LegendWrapper>
   );
 };
 
@@ -112,9 +124,15 @@ const ArrowImg = ({ ws }) => {
   return <canvas ref={arrowImgRef} />;
 };
 
+const LegendWrapper = styled.div`
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1000;
+`;
 const LegendContainer = styled.div`
-  background: rgba(255, 255, 255, 0.9);
-  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 15px 18px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
@@ -137,4 +155,46 @@ const LegendItem = styled.div`
 const RangeLabel = styled.span`
   font-size: 14px;
   font-variant-numeric: tabular-nums;
+`;
+
+const LegendCloseBtn = styled.button`
+  position: absolute;
+  top: 5px;
+  right: 5px;
+
+  width: 15px;
+  height: 15px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  color: #444;
+
+  &:hover {
+    color: #000;
+  }
+`;
+const LegendOpenBtn = styled.button`
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1000;
+
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  white-space: nowrap;
+  min-width: 40px;
+  text-align: center;
+
+  &:hover {
+    background: rgba(255, 255, 255, 1);
+  }
 `;

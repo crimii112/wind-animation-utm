@@ -1,6 +1,13 @@
 import styled from 'styled-components';
 
 const LccMapControlPanel = ({
+  datetime,
+  gridKm,
+  setGridKm,
+  layer,
+  setLayer,
+  tstep,
+  setTstep,
   bgPoll,
   setBgPoll,
   arrowGap,
@@ -10,7 +17,38 @@ const LccMapControlPanel = ({
 }) => {
   return (
     <Panel>
-      <label>
+      {datetime && <div className="datetime">{datetime}</div>}
+      <label className="justify-between">
+        <span>격자 km</span>
+        <select
+          value={gridKm}
+          onChange={e => setGridKm(Number(e.target.value))}
+        >
+          <option value={9}>9</option>
+          <option value={27}>27</option>
+        </select>
+      </label>
+      <label className="justify-between">
+        <span>LAYER</span>
+        <select value={layer} onChange={e => setLayer(Number(e.target.value))}>
+          {Array.from({ length: 1 }, (_, i) => (
+            <option key={i} value={i}>
+              {i + 1}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="justify-between">
+        <span>TSTEP</span>
+        <select value={tstep} onChange={e => setTstep(Number(e.target.value))}>
+          {Array.from({ length: 239 }, (_, i) => (
+            <option key={i} value={i}>
+              {i}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="justify-between">
         <span>배경 물질</span>
         <select value={bgPoll} onChange={e => setBgPoll(e.target.value)}>
           <option value="O3">O3</option>
@@ -18,7 +56,7 @@ const LccMapControlPanel = ({
           <option value="PM2.5">PM2.5</option>
         </select>
       </label>
-      <label>
+      <label className="justify-between">
         <span>바람 간격</span>
         <select
           value={arrowGap}
@@ -40,7 +78,7 @@ const LccMapControlPanel = ({
             setLayerVisible(v => ({ ...v, coords: e.target.checked }))
           }
         />
-        <span>물질 히트맵</span>
+        <span>모델링 농도</span>
       </label>
 
       <label>
@@ -76,22 +114,23 @@ export default LccMapControlPanel;
 const Panel = styled.div`
   position: absolute;
   top: 12px;
-  right: 12px;
+  left: 12px;
   z-index: 1000;
 
   background: rgba(255, 255, 255, 0.85);
-  padding: 10px 12px;
+  padding: 15px;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 
   label {
     display: flex;
+    //justify-content: space-between;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-size: 13px;
     cursor: pointer;
     user-select: none;
@@ -129,5 +168,14 @@ const Panel = styled.div`
     outline: none;
     border-color: #4a90e2;
     box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+  }
+
+  .datetime {
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid #ddd;
   }
 `;
