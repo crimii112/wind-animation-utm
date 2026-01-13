@@ -17,7 +17,13 @@ const LccMapControlPanel = ({
 }) => {
   return (
     <Panel>
-      {datetime && <div className="datetime">{datetime}</div>}
+      {datetime && (
+        <div className="datetime">
+          <button>{'<'}</button>
+          {datetime}
+          <button>{'>'}</button>
+        </div>
+      )}
       <label className="justify-between">
         <span>격자 km</span>
         <select
