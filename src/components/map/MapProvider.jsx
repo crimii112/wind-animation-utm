@@ -57,7 +57,7 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
     // const center = [14139592, 4498435];
     // const center = [14139274, 4477885];
     // const center = [14407986, 4306703]; // utm.jsx에서 사용
-    const center = [14256613, 4336767]; //lcc.jsx에서 사용
+    const center = [131338, -219484]; //lcc.jsx에서 사용
 
     const map = new OlMap({
       controls: defaultControls({ zoom: false, rotate: false }),
@@ -95,8 +95,9 @@ const MapProvider = ({ id, defaultMode = 'Base', children }) => {
         // center: center,
         // zoom: 11,
         projection: 'LCC',
-        center: transform(center, 'EPSG:3857', 'LCC'),
-        zoom: 5,
+        // center: transform(center, 'EPSG:3857', 'LCC'),
+        center: center,
+        zoom: 7.5,
         maxZoom: 13,
         minZoom: 2,
         units: 'm',

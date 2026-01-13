@@ -13,6 +13,7 @@ import MapContext from '@/components/map/MapContext';
 import { createLccWindOverlay } from '@/components/wind/lcc-wind-overlay';
 import LccMapControlPanel from '@/components/ui/lcc-map-control-panel';
 import LccLegend from '@/components/ui/lcc-legend';
+import WindParticle from '@/components/wind/wind-particle';
 
 const GRID_KM_MAP_CONFIG = {
   9: { center: [131338, -219484], zoom: 7.5 },
@@ -34,6 +35,7 @@ function Lcc({ mapId, SetMap }) {
   // 바람 애니메이션 관련
   const windOverlayRef = useRef([]);
   const [windData, setWindData] = useState([]);
+  const windParticlesRef = useRef([]);
 
   // 레이어 on/off 상태 관리
   const [layerVisible, setLayerVisible] = useState({
@@ -59,6 +61,17 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceArrows,
       id: 'arrows',
+      opacity: 0.7,
+    })
+  );
+
+  // 바람 애니메이션
+  const layerWindCanvasRef = useRef(
+    new VectorLayer({
+      id: 'windCanvas',
+      source: new VectorSource(),
+      style: null,
+      updateWhileAnimating: true,
     })
   );
 
@@ -89,12 +102,14 @@ function Lcc({ mapId, SetMap }) {
 
     map.addLayer(layerCoordsRef.current);
     map.addLayer(layerArrowsRef.current);
+    map.addLayer(layerWindCanvasRef.current);
 
     map.on('singleclick', handleSingleClick);
 
     return () => {
       map.removeLayer(layerCoordsRef.current);
       map.removeLayer(layerArrowsRef.current);
+      map.removeLayer(layerWindCanvasRef.current);
       map.un('singleclick', handleSingleClick);
     };
   }, [map, map.ol_uid]);
@@ -110,6 +125,7 @@ function Lcc({ mapId, SetMap }) {
     getLccData();
   }, [map?.ol_uid, gridKm, layer, tstep, bgPoll, arrowGap]);
 
+  // gridKm 변경 시 지도 뷰 재설정
   useEffect(() => {
     if (!map?.ol_uid) return;
 
@@ -121,7 +137,7 @@ function Lcc({ mapId, SetMap }) {
       zoom: cfg.zoom,
       duration: 500,
     });
-  });
+  }, [gridKm]);
 
   // bgPoll 변경 시 기존 스타일 캐시 초기화
   useEffect(() => {
@@ -251,17 +267,67 @@ function Lcc({ mapId, SetMap }) {
 
   /* wind overlay(바람 애니메이션) 추가 */
   useEffect(() => {
-    if (!map?.ol_uid) return;
+    if (windData && windData.length > 0) {
+      windParticlesRef.current = windData.map(item => new WindParticle(item));
+    } else {
+      windParticlesRef.current = [];
+    }
+  }, [windData]);
 
-    windOverlayRef.current.forEach(o => map.removeOverlay(o));
-    windOverlayRef.current = [];
+  useEffect(() => {
+    if (!map?.ol_uid || !layerWindCanvasRef.current) return;
 
-    if (!layerVisible.windAnimation || windData.length === 0) return;
+    let animationFrameId;
 
-    windData.forEach(item => {
-      windOverlayRef.current.push(createLccWindOverlay(map, item));
-    });
-  }, [map, windData, layerVisible.windAnimation]);
+    // OpenLayers의 렌더링 사이클과 별개로 실행되는 애니메이션 루프
+    const animate = () => {
+      if (layerVisible.windAnimation && windParticlesRef.current.length > 0) {
+        map.render(); // 지도를 다시 그리게 유도 (postrender 발생)
+      }
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    const handlePostRender = e => {
+      if (!layerVisible.windAnimation || windParticlesRef.current.length === 0)
+        return;
+
+      const ctx = e.context;
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+
+      windParticlesRef.current.forEach(p => {
+        p.update();
+        p.draw(ctx, map);
+      });
+
+      ctx.restore();
+    };
+
+    const windCanvasLayer = layerWindCanvasRef.current;
+
+    windCanvasLayer.setVisible(layerVisible.windAnimation);
+    windCanvasLayer.on('postrender', handlePostRender);
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      windCanvasLayer.un('postrender', handlePostRender);
+    };
+  }, [map, layerVisible.windAnimation]);
+  // useEffect(() => {
+  //   if (!map?.ol_uid) return;
+
+  //   windOverlayRef.current.forEach(o => map.removeOverlay(o));
+  //   windOverlayRef.current = [];
+
+  //   if (!layerVisible.windAnimation || windData.length === 0) return;
+
+  //   windData.forEach(item => {
+  //     windOverlayRef.current.push(createLccWindOverlay(map, item));
+  //   });
+  // }, [map, windData, layerVisible.windAnimation]);
 
   return (
     <MapDiv id={mapId}>

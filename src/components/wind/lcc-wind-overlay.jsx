@@ -7,12 +7,13 @@ const createLccWindOverlay = (map, item) => {
   const baseSpeed = ws < 5 ? 4 : ws < 10 ? 3 : ws < 15 ? 2 : 1;
   const speed = baseSpeed + Math.random() * 0.8;
   // 풍속 → 두께
-  const thickness = ws < 3 ? 1 : ws < 6 ? 3 : ws < 10 ? 5 : 7;
+  const thickness = ws < 3 ? 1 : ws < 6 ? 2 : ws < 10 ? 3 : 4;
+  const length = ws < 3 ? 10 : ws < 6 ? 16 : ws < 10 ? 22 : 30;
 
   const el = document.createElement('div');
   el.innerHTML = `
         <div class="wind" style="transform: rotate(${(wd + 180) % 360}deg)">
-            <span style="animation-duration: ${speed}s; width: ${thickness}px;"></span>
+            <span style="animation-duration: ${speed}s;  width: ${thickness}px;"></span>
         </div>
     `;
 
