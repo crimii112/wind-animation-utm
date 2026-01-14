@@ -6,9 +6,10 @@ export default class WindParticle {
     this.ws = item.ws;
     this.angle = ((this.wd + 180) * Math.PI) / 180;
 
-    this.speedFactor = this.ws < 5 ? 0.5 : this.ws < 10 ? 0.75 : 1.0; // 풍속 -> 애니메이션 속도
-    this.length = this.ws < 3 ? 10 : this.ws < 6 ? 16 : this.ws < 10 ? 22 : 30; // 풍속 -> 길이
-    this.thickness = this.ws < 3 ? 1 : this.ws < 6 ? 2 : 3; // 풍속 -> 두께
+    // 풍속 기반 속도, 길이, 두께 설정
+    this.speedFactor = this.ws < 5 ? 0.5 : this.ws < 10 ? 0.75 : 1.0;
+    this.length = this.ws < 3 ? 10 : this.ws < 6 ? 16 : this.ws < 10 ? 22 : 30;
+    this.thickness = this.ws < 3 ? 1 : this.ws < 6 ? 2 : 3;
 
     this.reset(true);
   }
@@ -19,7 +20,7 @@ export default class WindParticle {
   }
 
   update() {
-    this.progress += 0.006 * this.speedFactor;
+    this.progress += 0.007 * this.speedFactor; // 이동 속도 조절
     if (this.progress > 1) this.reset();
 
     if (this.progress < 0.25) this.opacity = this.progress / 0.25;
@@ -28,20 +29,21 @@ export default class WindParticle {
   }
 
   draw(ctx, map) {
-    const pixel = map.getPixelFromCoordinate([this.lon, this.lat]);
+    const pixel = map.getPixelFromCoordinate([this.lon, this.lat]); // 위경도 -> 픽셀 위치
     if (!pixel) return;
 
     ctx.save();
     ctx.translate(pixel[0], pixel[1]);
     ctx.rotate(this.angle);
 
-    const movement = this.length * (1 - this.progress * 1.5);
+    const movement = this.length * (1 - this.progress * 1.5); // 이동 범위(1.5) 조절
 
+    // 그라데이션
     const grad = ctx.createLinearGradient(
       0,
-      movement,
+      movement, // 시작점
       0,
-      movement + this.length
+      movement + this.length // 끝점
     );
     const softOpacity = this.opacity * this.opacity;
 

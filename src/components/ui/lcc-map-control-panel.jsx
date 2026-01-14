@@ -1,4 +1,9 @@
 import styled from 'styled-components';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+
+const MIN_TSTEP = 0;
+const MAX_TSTEP = 238;
 
 const LccMapControlPanel = ({
   datetime,
@@ -15,13 +20,38 @@ const LccMapControlPanel = ({
   layerVisible,
   setLayerVisible,
 }) => {
+  const [open, setOpen] = useState(true);
+
+  const handlePrevTstep = () => {
+    setTstep(prev => Math.max(MIN_TSTEP, prev - 1));
+  };
+
+  const handleNextTstep = () => {
+    setTstep(prev => Math.min(MAX_TSTEP, prev + 1));
+  };
+
+  if (!open)
+    return <PanelOpenBtn onClick={() => setOpen(true)}>지도 설정</PanelOpenBtn>;
+
   return (
     <Panel>
       {datetime && (
         <div className="datetime">
-          <button>{'<'}</button>
+          <button
+            className="icon-btn"
+            onClick={handlePrevTstep}
+            disabled={tstep === MIN_TSTEP}
+          >
+            <ChevronLeft size={15} />
+          </button>
           {datetime}
-          <button>{'>'}</button>
+          <button
+            className="icon-btn"
+            onClick={handleNextTstep}
+            disabled={tstep === MAX_TSTEP}
+          >
+            <ChevronRight size={15} />
+          </button>
         </div>
       )}
       <label className="justify-between">
@@ -111,6 +141,9 @@ const LccMapControlPanel = ({
         />
         <span>바람 애니메이션</span>
       </label>
+      <button className="fold-btn" onClick={() => setOpen(false)}>
+        접어두기
+      </button>
     </Panel>
   );
 };
@@ -137,7 +170,7 @@ const Panel = styled.div`
     //justify-content: space-between;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 14px;
     cursor: pointer;
     user-select: none;
   }
@@ -153,7 +186,7 @@ const Panel = styled.div`
 
     width: 90px;
     padding: 6px 28px 6px 10px;
-    font-size: 13px;
+    font-size: 14px;
     border-radius: 6px;
     border: 1px solid #ccc;
     background-color: #fff;
@@ -177,11 +210,86 @@ const Panel = styled.div`
   }
 
   .datetime {
-    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    font-size: 16px;
     font-weight: 600;
-    text-align: center;
     padding-bottom: 6px;
     margin-bottom: 6px;
     border-bottom: 1px solid #ddd;
+
+    padding-right: 10px;
+  }
+
+  .icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #333;
+
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  .icon-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .icon-btn:active {
+    background-color: rgba(0, 0, 0, 0.15);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .fold-btn {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+
+    background: none;
+    border: none;
+
+    font-size: 11px;
+    color: #666;
+    cursor: pointer;
+
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+      color: #000;
+    }
+  }
+`;
+
+const PanelOpenBtn = styled.button`
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+
+  padding: 6px 10px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255, 255, 255, 1);
   }
 `;

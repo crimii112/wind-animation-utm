@@ -29,7 +29,7 @@ function Lcc({ mapId, SetMap }) {
   const [layer, setLayer] = useState(0);
   const [tstep, setTstep] = useState(0);
   const [bgPoll, setBgPoll] = useState('O3');
-  const [arrowGap, setArrowGap] = useState(4);
+  const [arrowGap, setArrowGap] = useState(3);
   const halfCell = (gridKm * 1000) / 2;
 
   // 바람 애니메이션 관련
@@ -205,6 +205,8 @@ function Lcc({ mapId, SetMap }) {
   const getLccData = async () => {
     sourceArrows.clear();
     sourceCoords.clear();
+    windParticlesRef.current = [];
+    setWindData([]);
     document.body.style.cursor = 'progress';
 
     try {
@@ -279,10 +281,10 @@ function Lcc({ mapId, SetMap }) {
 
     let animationFrameId;
 
-    // OpenLayers의 렌더링 사이클과 별개로 실행되는 애니메이션 루프
+    // 애니메이션 루프
     const animate = () => {
       if (layerVisible.windAnimation && windParticlesRef.current.length > 0) {
-        map.render(); // 지도를 다시 그리게 유도 (postrender 발생)
+        map.render();
       }
       animationFrameId = requestAnimationFrame(animate);
     };
@@ -316,6 +318,8 @@ function Lcc({ mapId, SetMap }) {
       windCanvasLayer.un('postrender', handlePostRender);
     };
   }, [map, layerVisible.windAnimation]);
+
+  /* overlay 방식 바람 애니메이션 (미사용) */
   // useEffect(() => {
   //   if (!map?.ol_uid) return;
 

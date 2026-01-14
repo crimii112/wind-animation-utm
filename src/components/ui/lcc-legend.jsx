@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { X } from 'lucide-react';
 
 import { Point } from 'ol/geom';
 import { toContext } from 'ol/render';
@@ -16,14 +15,11 @@ const LccLegend = ({
   const [open, setOpen] = useState(true);
 
   if (!open) {
-    return <LegendOpenBtn onClick={() => setOpen(true)}>Legend</LegendOpenBtn>;
+    return <LegendOpenBtn onClick={() => setOpen(true)}>범례</LegendOpenBtn>;
   }
 
   return (
     <LegendWrapper>
-      <LegendCloseBtn onClick={() => setOpen(false)}>
-        <X width={15} height={15} />
-      </LegendCloseBtn>
       <LegendContainer>
         <div className={pollLegendOn ? '' : 'hidden'}>
           <LegendTitle>
@@ -50,6 +46,10 @@ const LccLegend = ({
             </LegendItem>
           ))}
         </div>
+
+        <button className="fold-btn" onClick={() => setOpen(false)}>
+          접어두기
+        </button>
       </LegendContainer>
     </LegendWrapper>
   );
@@ -132,7 +132,7 @@ const LegendWrapper = styled.div`
 `;
 const LegendContainer = styled.div`
   background: rgba(255, 255, 255, 0.85);
-  padding: 15px 18px;
+  padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 
@@ -141,9 +141,30 @@ const LegendContainer = styled.div`
   gap: 12px;
 
   pointer-events: auto;
+
+  .fold-btn {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+
+    background: none;
+    border: none;
+
+    font-size: 11px;
+    color: #666;
+    cursor: pointer;
+
+    border-radius: 4px;
+    transition: background-color 0.2s, color 0.2s;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+      color: #000;
+    }
+  }
 `;
 const LegendTitle = styled.div`
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   margin-bottom: 6px;
 `;
@@ -157,24 +178,6 @@ const RangeLabel = styled.span`
   font-variant-numeric: tabular-nums;
 `;
 
-const LegendCloseBtn = styled.button`
-  position: absolute;
-  top: 5px;
-  right: 5px;
-
-  width: 15px;
-  height: 15px;
-  border: none;
-  background: transparent;
-  font-size: 18px;
-  font-weight: bold;
-  cursor: pointer;
-  color: #444;
-
-  &:hover {
-    color: #000;
-  }
-`;
 const LegendOpenBtn = styled.button`
   position: absolute;
   bottom: 12px;
@@ -182,7 +185,7 @@ const LegendOpenBtn = styled.button`
   z-index: 1000;
 
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 14px;
   border-radius: 6px;
   border: 1px solid #ccc;
   background: rgba(255, 255, 255, 0.85);
