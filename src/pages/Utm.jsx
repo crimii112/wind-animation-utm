@@ -36,11 +36,12 @@ function Utm({ mapId, SetMap }) {
     windAnimation: true,
   });
 
-  const [dateTime, setDateTime] = useState(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return now;
-  });
+  // const [dateTime, setDateTime] = useState(() => {
+  //   const now = new Date();
+  //   now.setHours(0, 0, 0, 0);
+  //   return now;
+  // });
+  const [dateTime, setDateTime] = useState(new Date(2026, 0, 1, 0, 0, 0));
 
   const formatDateTime = date => {
     const yyyy = date.getFullYear();
