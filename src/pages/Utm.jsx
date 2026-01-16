@@ -70,7 +70,6 @@ function Utm({ mapId, SetMap }) {
       const { path, vecFile } = formatDateTime(dateTime);
 
       const res = await axios.get(`/img/model/25061/${path}/${vecFile}`);
-
       const arrowData = res.data
         .split('\n')
         .slice(1)
