@@ -5,7 +5,7 @@ import styled from 'styled-components';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Fill, RegularShape, Stroke, Style } from 'ol/style';
-import { Point, Polygon } from 'ol/geom';
+import { MultiPolygon, Point, Polygon } from 'ol/geom';
 import { Feature } from 'ol';
 import { transform } from 'ol/proj';
 
@@ -51,6 +51,7 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceCoords,
       id: 'coords',
+      opacity: 0.5,
     })
   );
 
@@ -61,7 +62,6 @@ function Lcc({ mapId, SetMap }) {
     new VectorLayer({
       source: sourceArrows,
       id: 'arrows',
-      opacity: 0.7,
     })
   );
 
@@ -192,7 +192,7 @@ function Lcc({ mapId, SetMap }) {
       fill: new Fill({
         color: color.replace(
           /rgba\(([^,]+), ([^,]+), ([^,]+), ([^)]+)\)/,
-          (_, r, g, b) => `rgba(${r}, ${g}, ${b}, 0.3)`
+          (_, r, g, b) => `rgba(${r}, ${g}, ${b}, 1)`
         ),
       }),
     });
@@ -237,10 +237,41 @@ function Lcc({ mapId, SetMap }) {
   };
 
   // 히트맵 Polygon Feature 생성
-  const createPolygonFeatures = data =>
-    data.map(item => {
-      const f = new Feature({
-        geometry: new Polygon([
+  // const createPolygonFeatures = data =>
+  //   data.map(item => {
+  //     const f = new Feature({
+  //       geometry: new Polygon([
+  //         [
+  //           [item.lon - halfCell, item.lat + halfCell],
+  //           [item.lon - halfCell, item.lat - halfCell],
+  //           [item.lon + halfCell, item.lat - halfCell],
+  //           [item.lon + halfCell, item.lat + halfCell],
+  //           [item.lon - halfCell, item.lat + halfCell],
+  //         ],
+  //       ]),
+  //       value: item.value,
+  //     });
+
+  //     f.setStyle(getPolygonStyle(item.value));
+  //     return f;
+  //   });
+
+  const createPolygonFeatures = data => {
+    const colorRange = rgbs[bgPoll];
+
+    const groupedCoordinates = {};
+
+    data.forEach(item => {
+      const colorIndex = colorRange.findIndex(
+        s => item.value >= s.min && item.value < s.max
+      );
+
+      if (colorIndex !== -1) {
+        if (!groupedCoordinates[colorIndex]) {
+          groupedCoordinates[colorIndex] = [];
+        }
+
+        const coords = [
           [
             [item.lon - halfCell, item.lat + halfCell],
             [item.lon - halfCell, item.lat - halfCell],
@@ -248,13 +279,35 @@ function Lcc({ mapId, SetMap }) {
             [item.lon + halfCell, item.lat + halfCell],
             [item.lon - halfCell, item.lat + halfCell],
           ],
-        ]),
-        value: item.value,
+        ];
+        groupedCoordinates[colorIndex].push(coords);
+      }
+    });
+
+    console.log(groupedCoordinates);
+
+    const features = Object.keys(groupedCoordinates).map(index => {
+      const range = colorRange[index];
+
+      const multiPolygonGeometry = new MultiPolygon(groupedCoordinates[index]);
+
+      const feature = new Feature({
+        geometry: multiPolygonGeometry,
       });
 
-      f.setStyle(getPolygonStyle(item.value));
-      return f;
+      feature.setStyle(
+        new Style({
+          fill: new Fill({
+            color: range.color,
+          }),
+        })
+      );
+
+      return feature;
     });
+
+    return features;
+  };
 
   // 바람 화살표 Feature 생성
   const createArrowFeatures = data =>
