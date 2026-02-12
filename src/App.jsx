@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import MapProvider from '@/components/map/MapProvider';
 import Utm from '@/pages/Utm';
+import { UtmProvider } from '@/components/utm/UtmContext';
 
 function App() {
   return (
@@ -13,7 +14,9 @@ function App() {
             element={
               <div className="flex flex-col w-screen h-screen">
                 <MapProvider id="UtmOverlayTest">
-                  <Utm mapId="UtmOverlayTest" />
+                  <UtmProvider>
+                    <Utm mapId="UtmOverlayTest" />
+                  </UtmProvider>
                 </MapProvider>
               </div>
             }

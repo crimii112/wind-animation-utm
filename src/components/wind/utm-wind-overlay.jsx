@@ -22,7 +22,7 @@ const createUtmWindOverlay = (map, item) => {
 
   const overlay = new Overlay({
     element: el,
-    position: transform([lon, lat], 'EPSG:32652', 'EPSG:3857'),
+    position: [lon, lat],
     positioning: 'center-center',
     stopEvent: false,
   });

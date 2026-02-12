@@ -1,29 +1,25 @@
 import { useEffect } from 'react';
 
-export function useWebViewBridge({ setDateTime, setLayerVisible }) {
+export function useWebViewBridge({ updateSettings, toggleLayer }) {
   useEffect(() => {
     if (!window.chrome?.webview) return;
 
     const handler = e => {
       const msg = e.data;
-      console.log(e.data);
+      console.log(msg);
 
       if (msg.type === 'SET_DATETIME') {
         const [y, m, d] = msg.date.split('-');
 
-        setDateTime(prev => {
-          const n = new Date(prev);
-          n.setFullYear(y, m - 1, d);
-          n.setHours(msg.hour, 0, 0, 0);
-          return n;
-        });
+        const newDate = new Date();
+        newDate.setFullYear(Number(y), Number(m) - 1, Number(d));
+        newDate.setHours(Number(msg.hour), 0, 0, 0);
+
+        updateSettings('dateTime', newDate);
       }
 
       if (msg.type === 'TOGGLE_LAYER') {
-        setLayerVisible(v => ({
-          ...v,
-          [msg.layer]: msg.visible,
-        }));
+        toggleLayer(msg.layer, msg.visible);
       }
     };
 

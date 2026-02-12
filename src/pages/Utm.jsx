@@ -1,47 +1,30 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import styled from 'styled-components';
-import { Image } from 'ol/layer';
+
 import { ImageStatic } from 'ol/source';
-import { transform } from 'ol/proj';
 
 import MapContext from '@/components/map/MapContext';
-import { createUtmWindOverlay } from '@/components/wind/utm-wind-overlay';
 import { useWebViewBridge } from '@/hooks/useWebViewBridge';
 import UtmMapControlPanel from '@/components/ui/utm-map-control-panel';
-
-const getWindLengthByZoom = zoom => {
-  if (zoom >= 12) return 30;
-  if (zoom >= 11) return 25;
-  if (zoom >= 10) return 20;
-  if (zoom >= 9) return 15;
-  return 5;
-};
+import WindParticle from '@/components/wind/wind-particle';
+import { createUtmLayers } from '@/components/utm/utm.layers';
+import { UtmContext } from '@/components/utm/UtmContext';
 
 function Utm({ mapId, SetMap }) {
   const isWebView = typeof window !== 'undefined' && window.IS_WEBVIEW === true;
+
   const map = useContext(MapContext);
+  const { settings, updateSettings, style, layerVisible, toggleLayer } =
+    useContext(UtmContext);
 
-  const windOverlayRef = useRef([]);
+  const dateTime = settings.dateTime;
+
   const [windData, setWindData] = useState([]);
+  const [extent, setExtent] = useState(null);
 
-  const imageLayersRef = useRef({
-    conc: null,
-    wind: null,
-  });
-
-  const [layerVisible, setLayerVisible] = useState({
-    concImage: true,
-    windImage: true,
-    windAnimation: true,
-  });
-
-  // const [dateTime, setDateTime] = useState(() => {
-  //   const now = new Date();
-  //   now.setHours(0, 0, 0, 0);
-  //   return now;
-  // });
-  const [dateTime, setDateTime] = useState(new Date(2026, 0, 1, 0, 0, 0));
+  const layersRef = useRef(createUtmLayers());
+  const windParticlesRef = useRef([]);
 
   const formatDateTime = date => {
     const yyyy = date.getFullYear();
@@ -62,184 +45,165 @@ function Utm({ mapId, SetMap }) {
   useEffect(() => {
     if (!map.ol_uid) return;
     if (SetMap) SetMap(map);
+
+    const { layerWindAnimation, layerConcImage, layerWindImage } =
+      layersRef.current;
+
+    map.addLayer(layerWindAnimation);
+    map.addLayer(layerConcImage);
+    map.addLayer(layerWindImage);
+
+    map.on('singleclick', handleSingleClick);
+
+    return () => {
+      map.removeLayer(layerWindAnimation);
+      map.removeLayer(layerConcImage);
+      map.removeLayer(layerWindImage);
+
+      map.un('singleclick', handleSingleClick);
+    };
   }, [map, map.ol_uid]);
+
+  const handleSingleClick = e => {
+    console.log(e.coordinate);
+    // console.log(transform(e.coordinate, 'EPSG:3857', 'LCC'));
+  };
+
+  useEffect(() => {
+    if (!map?.ol_uid) return;
+
+    const { layerConcImage, layerWindImage, layerWindAnimation } =
+      layersRef.current;
+
+    layerConcImage.setVisible(layerVisible.concImage);
+    layerWindImage.setVisible(layerVisible.windImage);
+    layerWindAnimation.setVisible(layerVisible.windAnimation);
+  }, [map?.ol_uid, layerVisible]);
+
+  useEffect(() => {
+    layersRef.current.layerConcImage.setOpacity(style.concImageOpacity);
+  }, [style.concImageOpacity]);
+
+  useEffect(() => {
+    layersRef.current.layerWindImage.setOpacity(style.windImageOpacity);
+  }, [style.windImageOpacity]);
 
   /* 바람 데이터 가져오기 */
   useEffect(() => {
-    const fetchWind = async () => {
-      const { path, vecFile } = formatDateTime(dateTime);
+    const getWindData = async () => {
+      const { yyyy, MM, dd, HH } = formatDateTime(dateTime);
 
-      const res = await axios.get(`/img/model/25061/${path}/${vecFile}`);
-      const arrowData = res.data
-        .split('\n')
-        .slice(1)
-        .filter(line => line.trim())
-        .map(line => {
-          const parts = line.trim().split(/\s+/);
-          return {
-            lat: parseFloat(parts[1]) * 1000,
-            lon: parseFloat(parts[0]) * 1000,
-            wd: Math.abs(parseFloat(parts[3])),
-            ws: parseFloat(parts[4]),
-          };
-        });
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_WIND_API_URL}/api/utm/wind`,
+        {
+          yyyy,
+          MM,
+          dd,
+          HH,
+        },
+      );
 
-      setWindData(arrowData);
+      setWindData(data.windData);
+      setExtent(data.extent);
     };
 
-    fetchWind();
+    getWindData();
   }, [dateTime]);
 
-  /* windData 기준 extent 계산 */
-  const extent = useMemo(() => {
-    if (windData.length === 0) return null;
-
-    let minLat = Infinity;
-    let maxLat = -Infinity;
-    let minLon = Infinity;
-    let maxLon = -Infinity;
-
-    for (const { lat, lon } of windData) {
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lon < minLon) minLon = lon;
-      if (lon > maxLon) maxLon = lon;
-    }
-
-    // 좌표 변환(EPSG:32652 → EPSG:3857)
-    const [minX, minY] = transform([minLon, minLat], 'EPSG:32652', 'EPSG:3857');
-    const [maxX, maxY] = transform([maxLon, maxLat], 'EPSG:32652', 'EPSG:3857');
-
-    return [minX, minY, maxX, maxY];
-  }, [windData]);
-
-  /* 이미지 레이어 추가 */
+  /* 이미지 데이터 추가 */
   useEffect(() => {
     if (!map?.ol_uid || !extent) return;
 
-    const { yyyy, MM, dd, HH } = formatDateTime(dateTime);
+    let concUrl;
+    let windUrl;
 
-    const rConcUrl = `/img/model/25061/${yyyy}/${MM}/${dd}/${HH}/00/10001_H1.5_rConc_${yyyy}${MM}${dd}${HH}00.Main.Trans.PNG`;
-    const rWindUrl = `/img/model/25061/${yyyy}/${MM}/${dd}/${HH}/00/10001_H1.5_rWind_${yyyy}${MM}${dd}${HH}00.Main.Trans.PNG`;
+    const loadImage = async (imgType, layer) => {
+      const { yyyy, MM, dd, HH } = formatDateTime(dateTime);
 
-    if (!imageLayersRef.current.conc) {
-      // 등농도
-      const rConcImageLayer = new Image({
-        name: 'rConcImage',
-        visible: layerVisible.concImage,
-        source: new ImageStatic({
-          url: rConcUrl,
+      const { data } = await axios.post(
+        `${import.meta.env.VITE_WIND_API_URL}/api/utm/img`,
+        {
+          imgType,
+          yyyy,
+          MM,
+          dd,
+          HH,
+        },
+        { responseType: 'blob' },
+      );
+
+      const objectUrl = URL.createObjectURL(data);
+
+      if (imgType === 'conc') concUrl = objectUrl;
+      if (imgType === 'wind') windUrl = objectUrl;
+
+      layer.setSource(
+        new ImageStatic({
+          url: objectUrl,
           imageExtent: extent,
-          crossOrigin: 'anonymous',
         }),
-        zIndex: 1,
-        opacity: 0.5,
-      });
-
-      // 바람장
-      const rWindImageLayer = new Image({
-        name: 'rWindImage',
-        visible: layerVisible.windImage,
-        source: new ImageStatic({
-          url: rWindUrl,
-          imageExtent: extent,
-          crossOrigin: 'anonymous',
-        }),
-        zIndex: 2,
-        opacity: 0.7,
-      });
-
-      map.addLayer(rConcImageLayer);
-      map.addLayer(rWindImageLayer);
-
-      imageLayersRef.current.conc = rConcImageLayer;
-      imageLayersRef.current.wind = rWindImageLayer;
-    } else {
-      // 등농도
-      if (imageLayersRef.current.conc) {
-        imageLayersRef.current.conc.setSource(
-          new ImageStatic({
-            url: rConcUrl,
-            imageExtent: extent,
-            crossOrigin: 'anonymous',
-          })
-        );
-      }
-
-      // 바람장
-      if (imageLayersRef.current.wind) {
-        imageLayersRef.current.wind.setSource(
-          new ImageStatic({
-            url: rWindUrl,
-            imageExtent: extent,
-            crossOrigin: 'anonymous',
-          })
-        );
-      }
-    }
-  }, [map, extent, dateTime]);
-
-  /* 이미지 on/off 토글 연결 */
-  useEffect(() => {
-    if (!imageLayersRef.current.conc) return;
-
-    imageLayersRef.current.conc.setVisible(layerVisible.concImage);
-    imageLayersRef.current.wind.setVisible(layerVisible.windImage);
-  }, [layerVisible.concImage, layerVisible.windImage]);
-
-  /* wind overlay(wind animation) 추가 */
-  useEffect(() => {
-    if (!map?.ol_uid) return;
-
-    windOverlayRef.current.forEach(o => map.removeOverlay(o));
-    windOverlayRef.current = [];
-
-    if (!layerVisible.windAnimation || windData.length === 0) return;
-
-    windData.forEach(item => {
-      windOverlayRef.current.push(createUtmWindOverlay(map, item));
-    });
-  }, [map, windData, layerVisible.windAnimation]);
-
-  /* 줌 레벨에 따른 바람 길이 조정 */
-  useEffect(() => {
-    if (!map?.ol_uid) return;
-
-    const view = map.getView();
-
-    const updateWindLength = () => {
-      const zoom = view.getZoom();
-      const length = getWindLengthByZoom(zoom);
-
-      windOverlayRef.current.forEach(overlay => {
-        if (!overlay._windEl || !overlay._windSpan) return;
-
-        overlay._windEl.style.height = `${length}px`;
-        overlay._windSpan.style.height = `${length}px`;
-      });
+      );
     };
 
-    map.on('moveend', updateWindLength);
+    const { layerConcImage, layerWindImage } = layersRef.current;
 
-    updateWindLength();
+    loadImage('conc', layerConcImage);
+    loadImage('wind', layerWindImage);
 
-    return () => map.un('moveend', updateWindLength);
-  }, [map]);
+    return () => {
+      if (concUrl) URL.revokeObjectURL(concUrl);
+      if (windUrl) URL.revokeObjectURL(windUrl);
+    };
+  }, [map?.ol_uid, extent, dateTime]);
 
-  useWebViewBridge({ setDateTime, setLayerVisible });
+  /* 바람장 애니메이션 추가 */
+  useEffect(() => {
+    windParticlesRef.current = windData.map(
+      item => new WindParticle(item, style.windColor),
+    );
+  }, [windData, style.windColor]);
 
-  return (
-    <MapDiv id={mapId}>
-      {!isWebView && (
-        <UtmMapControlPanel
-          dateTime={dateTime}
-          setDateTime={setDateTime}
-          layerVisible={layerVisible}
-          setLayerVisible={setLayerVisible}
-        />
-      )}
-    </MapDiv>
-  );
+  useEffect(() => {
+    if (!map?.ol_uid) return;
+    if (!layerVisible.windAnimation) return;
+
+    const { layerWindAnimation } = layersRef.current;
+    let rafId;
+
+    const animate = () => {
+      layerWindAnimation.changed();
+      rafId = requestAnimationFrame(animate);
+    };
+
+    const handlePostRender = e => {
+      if (windParticlesRef.current.length === 0) return;
+
+      const ctx = e.context;
+      const pixelRatio = e.frameState.pixelRatio;
+
+      ctx.save();
+      ctx.scale(pixelRatio, pixelRatio);
+
+      windParticlesRef.current.forEach(p => {
+        p.update();
+        p.draw(ctx, map);
+      });
+
+      ctx.restore();
+    };
+
+    layerWindAnimation.on('postrender', handlePostRender);
+    rafId = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      layerWindAnimation.un('postrender', handlePostRender);
+    };
+  }, [map, layerVisible.windAnimation]);
+
+  useWebViewBridge({ updateSettings, toggleLayer });
+
+  return <MapDiv id={mapId}>{!isWebView && <UtmMapControlPanel />}</MapDiv>;
 }
 
 export default Utm;
